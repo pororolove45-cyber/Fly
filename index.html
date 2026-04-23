@@ -3,33 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
-    <title>드래곤 플라이트</title>
+    <title>Dragon Flight V18 Infinite Fix</title>
     <style>
         * { -webkit-touch-callout: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
         body { 
             margin: 0; background: #000; overflow: hidden; 
             touch-action: none; position: fixed; width: 100%; height: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
         canvas { display: block; margin: 0 auto; background: #C2B280; }
         #ui { 
-            position: absolute; top: env(safe-area-inset-top, 15px); left: 15px; 
+            position: absolute; top: env(safe-area-inset-top, 10px); left: 10px; 
             color: #fff; font-size: 14px; pointer-events: none; 
             text-shadow: 2px 2px 2px #000; z-index: 10; 
         }
         #gameOver {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: #ff4d4d; text-align: center; display: none; z-index: 30;
-            background: rgba(0,0,0,0.9); padding: 40px 20px; border-radius: 25px; 
-            border: 3px solid #fff; width: 260px;
+            background: rgba(0,0,0,0.85); padding: 30px; border-radius: 20px; 
+            border: 4px solid #fff; min-width: 200px; width: 70%;
         }
         #phaseText {
             position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
-            color: #f1c40f; font-size: 40px; font-weight: bold; pointer-events: none;
-            text-shadow: 0 0 10px #000; opacity: 0; z-index: 25;
+            color: #f1c40f; font-size: clamp(30px, 8vw, 48px); font-weight: bold; pointer-events: none;
+            text-shadow: 0 0 10px #000, 0 0 20px #e67e22; opacity: 0; z-index: 25;
         }
     </style>
 </head>
@@ -37,13 +34,13 @@
     <div id="ui">
         Phase: <span id="curPhase">1</span><br>
         Score: <span id="score">0</span> | Life: <span id="life">3</span><br>
-        Baby: <span id="babyCount">0</span>
+        Bullets: <span id="bCount">1</span> | Baby Dragons: <span id="babyCount">0</span>
     </div>
-    <div id="phaseText">1 Phase</div>
+    <div id="phaseText">1 Phase...</div>
     <div id="gameOver">
-        <h1 style="margin: 0 0 20px 0;">GAME OVER</h1>
-        <p style="font-size: 24px; color: #fff; margin-bottom: 30px;">Score: <span id="finalScore">0</span></p>
-        <button onclick="init()" style="background:#fff; border:none; padding:15px 30px; border-radius:15px; font-size:18px; font-weight:bold;">다시 시작</button>
+        <h1 style="font-size: 30px; margin: 0;">GAME OVER</h1>
+        <p style="font-size: 20px; color: #fff; margin: 15px 0;">Score: <span id="finalScore">0</span></p>
+        <p style="color: #f1c40f; font-weight: bold; font-size: 18px;">화면을 터치하여 재시작</p>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -52,6 +49,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const lifeEl = document.getElementById('life');
+const bCountEl = document.getElementById('bCount');
 const babyCountEl = document.getElementById('babyCount');
 const curPhaseEl = document.getElementById('curPhase');
 const phaseTextEl = document.getElementById('phaseText');
@@ -66,20 +64,28 @@ window.addEventListener('resize', resize);
 resize();
 
 let score, life, bulletCount, fireSpeedMultiplier, player, bullets, enemies, items, particles, enemyBullets, lastSpawn, lastFire, bgOffset, isGameOver, phase, phaseOpacity;
-let bossPresent, lastPatternTime, babyDragons, nextBossScore, invincibilityTime, hitEffectOpacity;
+let bossPresent = false, lastPatternTime = 0;
+let babyDragons = [];
+let nextBossScore = 500;
+let gameStartTime = 0;
+let invincibilityTime = 0;
+let hitEffectOpacity = 0;
 
 function init() {
     score = 0; life = 3; bulletCount = 1; fireSpeedMultiplier = 1.0; phase = 1;
     player = { x: canvas.width / 2, y: canvas.height - 150 };
     bullets = []; enemies = []; items = []; particles = []; enemyBullets = []; babyDragons = [];
     lastSpawn = 0; lastFire = 0; bgOffset = 0; isGameOver = false; bossPresent = false;
-    nextBossScore = 500; invincibilityTime = 0; hitEffectOpacity = 0; lastPatternTime = 0;
+    nextBossScore = 500;
+    gameStartTime = Date.now();
+    invincibilityTime = 0;
+    hitEffectOpacity = 0;
     gameOverUI.style.display = 'none';
     updateUI();
 }
 
 function takeDamage() {
-    if (invincibilityTime > 0 || isGameOver) return;
+    if (invincibilityTime > 0) return;
     life--;
     invincibilityTime = 120;
     hitEffectOpacity = 1.0;
@@ -93,8 +99,13 @@ function takeDamage() {
 
 function updateUI() {
     scoreEl.innerText = score; lifeEl.innerText = life;
-    babyCountEl.innerText = babyDragons.length;
+    bCountEl.innerText = bulletCount; babyCountEl.innerText = babyDragons.length;
     curPhaseEl.innerText = phase;
+}
+
+function showPhaseEffect(p) {
+    phaseTextEl.innerText = p + " Phase...";
+    phaseOpacity = 2.0;
 }
 
 function handleInput(e) {
@@ -105,49 +116,68 @@ function handleInput(e) {
     player.x = Math.max(30, Math.min(canvas.width - 30, clientX - rect.left));
 }
 
-document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-canvas.addEventListener('touchmove', e => { e.preventDefault(); handleInput(e); }, { passive: false });
+document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleInput(e); }, { passive: false });
 canvas.addEventListener('mousemove', handleInput);
-canvas.addEventListener('touchstart', e => handleInput(e), { passive: false });
+canvas.addEventListener('touchstart', (e) => { if (isGameOver) init(); else handleInput(e); }, { passive: false });
+canvas.addEventListener('mousedown', (e) => { if (isGameOver) init(); });
 
 function drawDragon(x, y, color, size, isEnemy = false, hp = 0, maxHp = 0, isBoss = false) {
     if (!isEnemy && invincibilityTime > 0 && Math.floor(invincibilityTime / 5) % 2 === 0) return;
     ctx.save(); ctx.translate(x, y); if (isEnemy && !isBoss) ctx.rotate(Math.PI);
-    const s = size;
+    const s = size * 1.1;
     if (isBoss) {
         ctx.fillStyle = color;
-        ctx.beginPath(); ctx.ellipse(0, -20, 80, 100, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(-30, -30, 8, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(30, -30, 8, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, -20, 100, 120, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-40, -40, 20, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(40, -40, 20, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ff0000'; ctx.beginPath(); ctx.arc(-40, -40, 10, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(40, -40, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.moveTo(-60, -110); ctx.lineTo(-90, -180); ctx.lineTo(-30, -110); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(60, -110); ctx.lineTo(90, -180); ctx.lineTo(30, -110); ctx.fill();
     } else {
-        ctx.fillStyle = isEnemy ? '#7f8c8d' : '#3498db';
-        ctx.beginPath(); ctx.moveTo(-30*s, 0); ctx.lineTo(-8*s, -12*s); ctx.lineTo(-6*s, 12*s); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(30*s, 0); ctx.lineTo(8*s, -12*s); ctx.lineTo(6*s, 12*s); ctx.fill();
+        ctx.fillStyle = isEnemy ? '#95a5a6' : '#3498db';
+        ctx.beginPath(); ctx.moveTo(-35*s, 0); ctx.lineTo(-10*s, -15*s); ctx.lineTo(-8*s, 15*s); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(35*s, 0); ctx.lineTo(10*s, -15*s); ctx.lineTo(8*s, 15*s); ctx.fill();
         ctx.fillStyle = color;
-        ctx.beginPath(); ctx.ellipse(0, 0, 14*s, 22*s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, 0, 16*s, 26*s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -22*s, 9*s, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
     if (isEnemy && maxHp > 0) {
-        const barW = isBoss ? 160 : 35 * size;
-        const barY = isBoss ? y + 100 : y - 40;
-        ctx.fillStyle = '#444'; ctx.fillRect(x - barW/2, barY, barW, 6);
-        ctx.fillStyle = '#2ecc71'; ctx.fillRect(x - barW/2, barY, barW * (hp/maxHp), 6);
+        const barW = isBoss ? 200 : 40 * size;
+        const barY = isBoss ? y + 110 : y - (45*size);
+        ctx.fillStyle = '#444'; ctx.fillRect(x - barW/2, barY, barW, 8);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(x - barW/2, barY, barW * (hp/maxHp), 8);
     }
 }
 
 function spawnEnemy() {
     if (bossPresent) return;
+    
+    // 무한 페이즈 보스 등장 조건
     if (score > nextBossScore) {
-        enemies.push({ x: canvas.width/2, y: -150, hp: phase * 600, maxHp: phase * 600, color: '#8e44ad', isBoss: true, speed: 1, size: 2.5 });
+        let boss = { x: canvas.width/2, y: -200, hp: phase * 650, maxHp: phase * 650, color: '#8e44ad', isBoss: true, speed: 1.0, size: 3 };
+        enemies.push(boss); 
         bossPresent = true;
-        phaseTextEl.innerText = phase + " Phase"; phaseOpacity = 2.0;
+        showPhaseEffect(phase);
         nextBossScore += 500;
         return;
     }
-    let hpMul = Math.pow(1.7, phase - 1);
-    let x = Math.random() * (canvas.width - 60) + 30;
-    if (Math.random() > 0.8) enemies.push({ x, y: -50, hp: 15*hpMul, maxHp: 15*hpMul, color: '#f39c12', size: 1.2, speed: 1.5, type: 'mid', score: 30, drop: 0.3 });
-    else enemies.push({ x, y: -50, hp: 4*hpMul, maxHp: 4*hpMul, color: '#e74c3c', size: 0.8, speed: 1.0, type: 'small', score: 10, drop: 0.1 });
+
+    let roll = Math.random();
+    let hpMul = Math.pow(1.8, phase - 1); // 스케일링 완화 (너무 빨리 안 죽게)
+    let enemy = { x: Math.random() * (canvas.width - 80) + 40, y: -80, lastFire: Date.now() };
+
+    if (score >= 100 && roll > 0.75) {
+        enemy.hp = 20 * hpMul; enemy.maxHp = enemy.hp; enemy.score = 30; enemy.dropG = 0.3; enemy.dropL = 0.35;
+        enemy.color = '#f39c12'; enemy.size = 1.3; enemy.speed = 1.5; enemy.type = 'mid';
+    } else {
+        enemy.hp = 4 * hpMul; enemy.maxHp = enemy.hp; enemy.score = 10; enemy.dropG = 0.4; enemy.dropL = 0.1;
+        enemy.color = '#e74c3c'; enemy.size = 0.85; enemy.speed = 0.8; enemy.type = 'small';
+    }
+    enemies.push(enemy);
 }
 
 function update() {
@@ -155,70 +185,136 @@ function update() {
     if (invincibilityTime > 0) invincibilityTime--;
     if (hitEffectOpacity > 0) hitEffectOpacity -= 0.05;
     if (phaseOpacity > 0) { phaseOpacity -= 0.02; phaseTextEl.style.opacity = Math.min(1, phaseOpacity); }
+
     if (Date.now() - lastFire > 400 / fireSpeedMultiplier) {
-        let sx = player.x - ((bulletCount - 1) * 15) / 2;
-        for(let i=0; i<bulletCount; i++) bullets.push({ x: sx + i*15, y: player.y - 30 });
-        babyDragons.forEach(bd => { bullets.push({ x: bd.x, y: bd.y, vx: 0, vy: -10 }); });
+        const spacing = 18;
+        const startX = player.x - ((bulletCount - 1) * spacing) / 2;
+        for(let i=0; i<bulletCount; i++) bullets.push({ x: startX + (i*spacing), y: player.y - 40 });
+        babyDragons.forEach(bd => {
+            bullets.push({ x: bd.x - 10, y: bd.y, vx: -1, vy: -10 });
+            bullets.push({ x: bd.x + 10, y: bd.y, vx: 1, vy: -10 });
+        });
         lastFire = Date.now();
     }
-    if (!bossPresent && Date.now() - lastSpawn > 1100) { spawnEnemy(); lastSpawn = Date.now(); }
-    bullets.forEach((b, i) => { b.y -= 12; if (b.y < -20) bullets.splice(i,1); });
+    
+    // 적 스폰 타이머 - 보스가 없을 때만 작동
+    if (!bossPresent && Date.now() - lastSpawn > 1100) { 
+        spawnEnemy(); 
+        lastSpawn = Date.now(); 
+    }
+
+    bullets.forEach((b, i) => { b.y -= 12; b.x += (b.vx || 0); if (b.y < -20) bullets.splice(i, 1); });
+    
     enemyBullets.forEach((eb, i) => {
-        eb.x += eb.vx || 0; eb.y += eb.vy || 3.5;
-        if (Math.abs(eb.x - player.x) < 25 && Math.abs(eb.y - player.y) < 25) { takeDamage(); enemyBullets.splice(i,1); }
-        if (eb.y > canvas.height + 50) enemyBullets.splice(i,1);
+        eb.y += eb.vy; eb.x += (eb.vx || 0);
+        if (eb.type === 'wide') {
+            if (Math.abs(eb.y - player.y) < 25 && player.x > 50 && player.x < canvas.width - 50) { takeDamage(); enemyBullets.splice(i, 1); }
+        } else if (eb.type === 'explode') {
+            eb.timer--;
+            if (eb.timer <= 0) {
+                for(let j=0; j<8; j++) {
+                    let ang = (Math.PI*2/8)*j;
+                    enemyBullets.push({ x: eb.x, y: eb.y, vx: Math.cos(ang)*3, vy: Math.sin(ang)*3, type: 'normal' });
+                }
+                enemyBullets.splice(i, 1);
+            }
+        } else {
+            if (Math.abs(eb.x - player.x) < 28 && Math.abs(eb.y - player.y) < 28) { takeDamage(); enemyBullets.splice(i, 1); }
+        }
+        if (eb.y > canvas.height + 50) enemyBullets.splice(i, 1);
     });
+
     enemies.forEach((e, i) => {
-        if (e.isBoss) { if (e.y < 100) e.y += e.speed; else bossPattern(e); } else { e.y += e.speed; }
-        if (!e.isBoss && Math.random() < 0.01) enemyBullets.push({ x: e.x, y: e.y + 20, vx: 0, vy: 4 });
+        if (e.isBoss) { if (e.y < 100) e.y += e.speed; else executeBossPattern(e); } else { e.y += e.speed; }
+        if (!e.isBoss && Date.now() - e.lastFire > 2200) { 
+            // 쫄병들의 탄막 공격
+            if (e.type === 'small') {
+                enemyBullets.push({ x: e.x, y: e.y + 20, vx: 0, vy: 3.5, type: 'normal' });
+            } else if (e.type === 'mid') {
+                for(let j=-1; j<=1; j++) enemyBullets.push({ x: e.x, y: e.y + 20, vx: j*1.2, vy: 3.5, type: 'normal' });
+            }
+            e.lastFire = Date.now(); 
+        }
         bullets.forEach((b, bi) => {
-            let r = e.isBoss ? 80 : 30 * e.size;
-            if (Math.abs(b.x - e.x) < r && Math.abs(b.y - e.y) < r) {
-                bullets.splice(bi,1); e.hp--;
+            let hitRange = e.isBoss ? 90 : 35*e.size;
+            if (Math.abs(b.x - e.x) < hitRange && Math.abs(b.y - e.y) < hitRange) {
+                bullets.splice(bi, 1); e.hp--;
                 if (e.hp <= 0) {
-                    if (e.isBoss) { bossPresent = false; phase++; updateUI(); items.push({ x: e.x, y: e.y, type: 'M' }); }
-                    else { score += e.score; updateUI(); if (Math.random() < e.drop) items.push({ x: e.x, y: e.y, type: Math.random() > 0.5 ? 'G' : 'L' }); }
-                    enemies.splice(i,1);
+                    if (e.isBoss) {
+                        bossPresent = false; phase++; updateUI();
+                        for(let l=0; l<3; l++) items.push({ x: e.x - 40 + l*40, y: e.y + 50, type: 'L' });
+                        items.push({ x: e.x, y: e.y + 100, type: 'M' });
+                    } else {
+                        let itemRoll = Math.random();
+                        if (itemRoll < e.dropG) items.push({ x: e.x, y: e.y, type: 'G' });
+                        else if (itemRoll < e.dropG + e.dropL) items.push({ x: e.x, y: e.y, type: 'L' });
+                        score += (e.score || 0); updateUI();
+                    }
+                    enemies.splice(i, 1);
                 }
             }
         });
-        if (Math.abs(e.x - player.x) < 35 && Math.abs(e.y - player.y) < 35) { takeDamage(); if(!e.isBoss) enemies.splice(i,1); }
-        if (e.y > canvas.height + 100) enemies.splice(i,1);
+        if (!e.isBoss && Math.abs(e.x - player.x) < 40 && Math.abs(e.y - player.y) < 40) { takeDamage(); enemies.splice(i, 1); }
+        if (e.y > canvas.height + 100) enemies.splice(i, 1);
     });
+
     items.forEach((it, i) => {
         it.y += 3;
-        if (Math.abs(it.x - player.x) < 40 && Math.abs(it.y - player.y) < 40) {
+        if (Math.abs(it.x - player.x) < 45 && Math.abs(it.y - player.y) < 45) {
             if (it.type === 'G') { if (bulletCount < 5) bulletCount++; else fireSpeedMultiplier += 0.2; }
             else if (it.type === 'L') { if (life < 5) life++; }
-            else if (it.type === 'M' && babyDragons.length < 2) babyDragons.push({ offset: babyDragons.length === 0 ? -50 : 50 });
-            items.splice(i,1); updateUI();
+            else if (it.type === 'M') { babyDragons.push({ offset: babyDragons.length === 0 ? -55 : 55 }); }
+            items.splice(i, 1); updateUI();
         }
     });
     babyDragons.forEach(bd => { bd.x = player.x + bd.offset; bd.y = player.y + 20; });
 }
 
-function bossPattern(b) {
-    if (Date.now() - lastPatternTime < 2500) return;
-    for(let i=-2; i<=2; i++) enemyBullets.push({ x: b.x, y: b.y + 50, vx: i, vy: 4 });
-    lastPatternTime = Date.now();
+function executeBossPattern(boss) {
+    let now = Date.now();
+    if (now - lastPatternTime < 3000) return;
+    let randPattern = Math.floor(Math.random() * 4);
+    if (randPattern === 0) { enemyBullets.push({ x: canvas.width/2, y: boss.y + 50, vx: 0, vy: 4, type: 'wide' }); }
+    else if (randPattern === 1) { enemyBullets.push({ x: canvas.width/2, y: boss.y + 50, vx: 0, vy: 3, type: 'explode', timer: 80 }); }
+    else if (randPattern === 2) { for(let i=0; i<5; i++) enemyBullets.push({ x: Math.random()*canvas.width, y: boss.y + 50, vx: 0, vy: 5, type: 'normal' }); }
+    else if (randPattern === 3) {
+        for(let i=0; i<6; i++) {
+            let e = { x: Math.random()*canvas.width, y: boss.y + 50, speed: 1.2, lastFire: Date.now(), isSummon: true };
+            e.hp = 10; e.maxHp = 10; e.color = '#f39c12'; e.size = 1.0; e.dropG = 0; e.dropL = 0;
+            e.type = (Math.random() > 0.5) ? 'mid' : 'small';
+            enemies.push(e);
+        }
+    }
+    lastPatternTime = now;
 }
 
 function draw() {
-    bgOffset = (bgOffset + 2) % 80;
+    bgOffset += 2; if (bgOffset >= 80) bgOffset = 0;
     ctx.fillStyle = '#C2B280'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#B0A070';
-    for(let x=0; x<canvas.width; x+=80) for(let y=-80; y<canvas.height; y+=80) ctx.fillRect(x+5, y+bgOffset+5, 70, 70);
-    ctx.fillStyle = '#ff3333'; enemyBullets.forEach(eb => { ctx.beginPath(); ctx.arc(eb.x, eb.y, 6, 0, Math.PI*2); ctx.fill(); });
-    items.forEach(it => { ctx.fillStyle = it.type === 'G' ? '#f1c40f' : (it.type === 'L' ? '#e74c3c' : '#9b59b6'); ctx.font = 'bold 20px Arial'; ctx.fillText(it.type, it.x, it.y); });
-    ctx.fillStyle = '#fff'; bullets.forEach(b => ctx.fillRect(b.x-2, b.y-10, 4, 15));
-    if (!isGameOver) { drawDragon(player.x, player.y, '#3498db', 1); babyDragons.forEach(bd => drawDragon(bd.x, bd.y, '#2ecc71', 0.6)); }
+    for (let x = 0; x < canvas.width; x += 80) for (let y = -80; y < canvas.height; y += 80) ctx.fillRect(x + 5, y + bgOffset + 5, 70, 70);
+    enemyBullets.forEach(eb => {
+        ctx.fillStyle = eb.type === 'wide' ? 'rgba(255,0,0,0.4)' : '#ff3333';
+        if (eb.type === 'wide') ctx.fillRect(50, eb.y, canvas.width - 100, 30);
+        else { ctx.beginPath(); ctx.arc(eb.x, eb.y, eb.type === 'explode' ? 12 : 6, 0, Math.PI*2); ctx.fill(); }
+    });
+    items.forEach(it => {
+        ctx.fillStyle = it.type === 'G' ? '#f1c40f' : (it.type === 'L' ? '#e74c3c' : '#9b59b6');
+        ctx.font = 'bold 24px Arial'; ctx.fillText(it.type, it.x - 10, it.y);
+    });
+    ctx.fillStyle = '#fff'; bullets.forEach(b => ctx.fillRect(b.x - 3, b.y - 12, 6, 18));
+    if (!isGameOver) {
+        drawDragon(player.x, player.y, '#3498db', 1);
+        babyDragons.forEach(bd => drawDragon(bd.x, bd.y, '#2ecc71', 0.5));
+    }
     enemies.forEach(e => drawDragon(e.x, e.y, e.color, e.size, true, e.hp, e.maxHp, e.isBoss));
     if (hitEffectOpacity > 0) {
-        let g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.height);
-        g.addColorStop(0, 'transparent'); g.addColorStop(1, `rgba(255,0,0,${hitEffectOpacity*0.6})`);
-        ctx.fillStyle = g; ctx.fillRect(0,0,canvas.width,canvas.height);
+        let grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, canvas.width/4, canvas.width/2, canvas.height/2, canvas.height);
+        grad.addColorStop(0, 'transparent'); grad.addColorStop(1, `rgba(255, 0, 0, ${hitEffectOpacity * 0.7})`);
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
-    update(); requestAnimationFrame(draw);
+    update();
+    requestAnimationFrame(draw);
 }
 init(); draw();
 </script>
