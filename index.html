@@ -17,6 +17,12 @@
             color: #fff; font-size: 14px; pointer-events: none; 
             text-shadow: 2px 2px 2px #000; z-index: 10; 
         }
+        /* 버전 표시 스타일 추가 */
+        #versionTag {
+            position: absolute; top: env(safe-area-inset-top, 10px); right: 10px;
+            color: rgba(255, 255, 255, 0.6); font-size: 10px; pointer-events: none;
+            z-index: 10;
+        }
         #gameOver {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             color: #ff4d4d; text-align: center; display: none; z-index: 30;
@@ -37,6 +43,8 @@
         Speed: <span id="speed">1.0</span>x | Life: <span id="life">3</span><br>
         Baby: <span id="babyCount">0</span> (Atk: <span id="babyAtk">1</span>x)
     </div>
+    <!-- 버전 표시 태그 -->
+    <div id="versionTag">v37.3</div>
     <div id="phaseText">1 Phase...</div>
     <div id="gameOver">
         <h1 style="font-size: 30px; margin: 0;">GAME OVER</h1>
@@ -61,9 +69,6 @@ function resize() {
 window.addEventListener('resize', resize); resize();
 
 let score, life, bulletCount, fireSpeedMultiplier, player, bullets, enemies, items, enemyBullets, lastSpawn, lastFire, bgOffset, isGameOver, phase, phaseOpacity, bossPresent, lastPatternTime, babyCount, nextBossScore, invincibilityTime, hitEffectOpacity;
-
-// iOS 보정을 위한 이전 시간 기록
-let lastTime = Date.now();
 
 function init() {
     score = 0; life = 3; bulletCount = 1; fireSpeedMultiplier = 1.0; phase = 1;
@@ -172,7 +177,6 @@ function update() {
     if (hitEffectOpacity > 0) hitEffectOpacity -= 0.05;
     if (phaseOpacity > 0) { phaseOpacity -= 0.02; phaseTextEl.style.opacity = Math.min(1, phaseOpacity); }
     
-    // [핵심 수정] 시간 기반 탄막 생성 - 기기 주사율(60Hz, 120Hz)에 관계 없이 일정한 발사 속도 보장
     if (now - lastFire > (400 / fireSpeedMultiplier)) {
         const startX = player.x - ((bulletCount - 1) * 18) / 2;
         for(let i=0; i<bulletCount; i++) bullets.push({ x: startX + (i*18), y: player.y - 40, dmg: 1, type: 'player' });
