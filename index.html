@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Dragon Flight V37 Nerfed</title>
+    <title>Dragon Flight V37.3 iOS Fixed</title>
     <style>
         * { -webkit-touch-callout: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
         body { 
@@ -28,6 +28,7 @@
             color: #f1c40f; font-size: clamp(30px, 8vw, 48px); font-weight: bold; pointer-events: none;
             text-shadow: 0 0 10px #000, 0 0 20px #e67e22; opacity: 0; z-index: 25;
         }
+        button { padding:10px 20px; font-size:16px; font-weight:bold; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -40,7 +41,7 @@
     <div id="gameOver">
         <h1 style="font-size: 30px; margin: 0;">GAME OVER</h1>
         <p style="font-size: 20px; color: #fff; margin: 15px 0;">Score: <span id="finalScore">0</span></p>
-        <button onclick="init()" style="padding:10px 20px; font-size:16px; font-weight:bold; cursor:pointer;">다시 시작</button>
+        <button onclick="init()">다시 시작</button>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -60,6 +61,9 @@ function resize() {
 window.addEventListener('resize', resize); resize();
 
 let score, life, bulletCount, fireSpeedMultiplier, player, bullets, enemies, items, enemyBullets, lastSpawn, lastFire, bgOffset, isGameOver, phase, phaseOpacity, bossPresent, lastPatternTime, babyCount, nextBossScore, invincibilityTime, hitEffectOpacity;
+
+// iOS 보정을 위한 이전 시간 기록
+let lastTime = Date.now();
 
 function init() {
     score = 0; life = 3; bulletCount = 1; fireSpeedMultiplier = 1.0; phase = 1;
@@ -84,7 +88,6 @@ function updateUI() {
     babyCountEl.innerText = babyCount;
     speedEl.innerText = fireSpeedMultiplier.toFixed(1);
     let extra = Math.max(0, babyCount - 2);
-    // 대미지 증가율 반으로 줄임
     let atkMult = 1 + (extra * 0.5);
     babyAtkEl.innerText = atkMult.toFixed(1);
     curPhaseEl.innerText = phase;
@@ -132,24 +135,16 @@ function spawnEnemy(forceType = null, isSummon = false) {
     if (bossPresent && !forceType) return;
     if (!forceType && !bossPresent && score >= nextBossScore) {
         enemies.push({ x: canvas.width/2, y: -200, hp: phase * 850, maxHp: phase * 850, color: '#8e44ad', isBoss: true, speed: 1.0, size: 3 });
-        bossPresent = true; 
-        nextBossScore = Infinity;
+        bossPresent = true; nextBossScore = Infinity;
         phaseTextEl.innerText = phase + " Phase Boss!"; phaseOpacity = 2.0; 
-        updateUI();
-        return;
+        updateUI(); return;
     }
     let enemy = { x: Math.random() * (canvas.width - 80) + 40, y: -80, lastFire: 0, isSummon: isSummon }; 
     if (forceType === 'mid' || (Math.random() > 0.75)) {
-        enemy.hp = 22 + (phase - 1) * 22; 
-        enemy.maxHp = enemy.hp; 
-        // 소환된 적은 점수 0점
-        enemy.score = isSummon ? 0 : 15;
+        enemy.hp = 22 + (phase - 1) * 22; enemy.maxHp = enemy.hp; enemy.score = isSummon ? 0 : 15;
         enemy.color = '#f39c12'; enemy.size = 1.4; enemy.speed = 1.5; enemy.type = 'mid'; enemy.dropG = isSummon ? 0 : 0.4;
     } else {
-        enemy.hp = 5 + (phase - 1) * 5;  
-        enemy.maxHp = enemy.hp; 
-        // 소환된 적은 점수 0점
-        enemy.score = isSummon ? 0 : 10;
+        enemy.hp = 5 + (phase - 1) * 5; enemy.maxHp = enemy.hp; enemy.score = isSummon ? 0 : 10;
         enemy.color = '#e74c3c'; enemy.size = 0.85; enemy.speed = 0.8; enemy.type = 'small'; enemy.dropG = isSummon ? 0 : 0.3;
     }
     enemies.push(enemy);
@@ -159,17 +154,11 @@ function executeBossPattern(boss) {
     let now = Date.now(); if (now - lastPatternTime < 2800) return;
     for(let n=0; n<Math.min(phase, 10); n++) {
         let rand = Math.floor(Math.random() * 5);
-        const ts = 0.75; 
-        const spawnX = boss.x;
-        const spawnY = boss.y + 40; 
+        const ts = 0.75; const spawnX = boss.x; const spawnY = boss.y + 40; 
         if (rand === 0) enemyBullets.push({ x: spawnX, y: spawnY, vx: 0, vy: (5+n*0.2) * ts, type: 'explode', stage: 0 });
         else if (rand === 1) for(let i=-2; i<=2; i++) enemyBullets.push({ x: spawnX, y: spawnY, vx: i*1.8 * ts, vy: (4+n*0.2) * ts, type: 'normal' });
         else if (rand === 2) for(let i=0; i<6; i++) enemyBullets.push({ x: Math.random()*canvas.width, y: -20, vx: 0, vy: (6+n*0.2) * ts, type: 'normal' });
-        else if (rand === 3) { 
-            let sc = 2 + Math.min(phase, 5); 
-            // 보스 소환임을 알리기 위해 인자 추가
-            for(let k=0; k<sc; k++) spawnEnemy(Math.random() > 0.5 ? 'mid' : 'small', true); 
-        }
+        else if (rand === 3) { let sc = 2 + Math.min(phase, 5); for(let k=0; k<sc; k++) spawnEnemy(Math.random() > 0.5 ? 'mid' : 'small', true); }
         else if (rand === 4) enemyBullets.push({ y: spawnY, vy: 5 * ts, type: 'wide' });
     }
     lastPatternTime = now;
@@ -177,25 +166,27 @@ function executeBossPattern(boss) {
 
 function update() {
     if (isGameOver) return;
+    let now = Date.now();
+    
     if (invincibilityTime > 0) invincibilityTime--;
     if (hitEffectOpacity > 0) hitEffectOpacity -= 0.05;
     if (phaseOpacity > 0) { phaseOpacity -= 0.02; phaseTextEl.style.opacity = Math.min(1, phaseOpacity); }
     
-    if (Date.now() - lastFire > 400 / fireSpeedMultiplier) {
+    // [핵심 수정] 시간 기반 탄막 생성 - 기기 주사율(60Hz, 120Hz)에 관계 없이 일정한 발사 속도 보장
+    if (now - lastFire > (400 / fireSpeedMultiplier)) {
         const startX = player.x - ((bulletCount - 1) * 18) / 2;
         for(let i=0; i<bulletCount; i++) bullets.push({ x: startX + (i*18), y: player.y - 40, dmg: 1, type: 'player' });
         
         let extra = Math.max(0, babyCount - 2);
-        // 대미지 증가율 반으로 하향 (1 + 초과분 * 0.5)
         let bDmg = 1 + (extra * 0.5);
         if (babyCount >= 1) bullets.push({ x: player.x - 55, y: player.y + 20, vx: -0.5, vy: -10, dmg: bDmg, type: 'baby' });
         if (babyCount >= 2) bullets.push({ x: player.x + 55, y: player.y + 20, vx: 0.5, vy: -10, dmg: bDmg, type: 'baby' });
         
-        lastFire = Date.now();
+        lastFire = now;
     }
     
     let spawnInterval = 1100 / (1 + (phase * 0.25));
-    if (!bossPresent && Date.now() - lastSpawn > spawnInterval) { spawnEnemy(); lastSpawn = Date.now(); }
+    if (!bossPresent && now - lastSpawn > spawnInterval) { spawnEnemy(); lastSpawn = now; }
     
     bullets.forEach((b, i) => { 
         b.y -= 12; b.x += (b.vx || 0); 
@@ -219,11 +210,11 @@ function update() {
         if (e.isBoss) { if (e.y < 80) e.y += e.speed; else executeBossPattern(e); } 
         else { 
             e.y += e.speed; 
-            if (Date.now() - e.lastFire > 2100) {
+            if (now - e.lastFire > 2100) {
                 const ts = 0.75;
                 if (e.type === 'small') enemyBullets.push({ x: e.x, y: e.y + 20, vx: 0, vy: 3.5 * ts, type: 'normal' });
                 else { for(let j=-1; j<=1; j++) enemyBullets.push({ x: e.x, y: e.y + 20, vx: j*1.3 * ts, vy: 3.5 * ts, type: 'normal' }); }
-                e.lastFire = Date.now();
+                e.lastFire = now;
             }
         }
         bullets.forEach((b, bi) => {
@@ -238,11 +229,11 @@ function update() {
                         items.push({ x: e.x, y: e.y + 80, type: 'M' });
                         if (Math.random() < 0.5) items.push({ x: e.x + 20, y: e.y + 80, type: 'M' });
                     } else { 
-                        score += e.score; // 보스 소환 개체면 e.score가 0임
-                        if (Math.random() < e.dropG) items.push({ x: e.x, y: e.y, type: 'G' }); 
+                        score += e.score; if (Math.random() < e.dropG) items.push({ x: e.x, y: e.y, type: 'G' }); 
                         else if (Math.random() < 0.1) items.push({ x: e.x, y: e.y, type: 'L' }); 
                     }
                     enemies.splice(i, 1); updateUI();
+                    if(score >= nextBossScore) { phase++; nextBossScore += 500 * phase; updateUI(); }
                 }
             }
         });
